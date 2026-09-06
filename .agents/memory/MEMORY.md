@@ -1,0 +1,1 @@
+- [Video artifact registration](video-artifact-registration.md) — Import existing video work through a new managed scaffold; preserve its manifest and recording hook.
