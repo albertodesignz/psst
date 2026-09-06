@@ -1,0 +1,29 @@
+kind = "video"
+previewPath = "/filmstrip-gallery-video/"
+title = "PSSST!"
+description = "A looping 16:9 cinematic motion study for a moving-image gallery."
+version = "1.0.0"
+id = "artifacts/filmstrip-gallery-video"
+router = "path"
+videoAspectRatio = "16:9"
+
+[[services]]
+name = "web"
+paths = [ "/filmstrip-gallery-video/" ]
+localPort = 19468
+
+[services.development]
+run = "pnpm --filter @workspace/filmstrip-gallery-video run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/filmstrip-gallery-video", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/filmstrip-gallery-video/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19468"
+BASE_PATH = "/filmstrip-gallery-video/"
