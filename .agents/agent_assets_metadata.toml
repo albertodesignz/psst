@@ -1,0 +1,10 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "7lDNUHhHtEQSy831zboAW"
+uri = "file://artifacts/filmstrip-gallery-video/public/audio/bg_music.mp3"
+type = "audio"
+title = "gallery motion score"
+description = "Generated music: Cinematic minimal instrumental background music scoring a looping moving-image gallery motion study. Tactile analog synth pulses, muted electric piano, soft tape texture, restrained …"
+logical_id = "b11da615-084f-4ed5-9e8a-e541c3439d2d"
