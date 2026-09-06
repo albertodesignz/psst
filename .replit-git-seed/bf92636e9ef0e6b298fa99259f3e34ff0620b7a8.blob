@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "PSSST!"
+description = "A cinematic interactive music gallery with a circular 3D filmstrip carousel, album artwork, playback controls, animated waveform, and keyboard-accessible browsing."
+version = "1.0.0"
+id = "artifacts/filmstrip-gallery"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19999
+
+[services.development]
+run = "pnpm --filter @workspace/filmstrip-gallery run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/filmstrip-gallery", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/filmstrip-gallery/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19999"
+BASE_PATH = "/"
