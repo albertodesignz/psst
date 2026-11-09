@@ -1,315 +1,564 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
+import { Container } from "@videojs/react";
+import { Video, VideoPlayer, usePlayer } from "@videojs/react/video";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Expand,
+  Minimize,
+  Menu,
+  Pause,
+  Play,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
+import { TRACKS } from "./tracks";
 
-type Track = {
-  src: string;
-  artist: string;
-  title: string;
-  album: string;
-  year: string;
-  scene: string;
-  wave: string;
-  text: { muted: string; secondary: string; primary: string; line: string; track: string };
+const STEP = 408;
+const BARS = Array.from(
+  { length: 56 },
+  (_, i) => 12 + Math.abs(Math.sin(i * 2.15)) * 28,
+);
+const asset = (path: string) =>
+  `${import.meta.env.BASE_URL}${path.replace(/^\//, "")}`;
+const SAMPLE = asset("media/psst-motion-study.mp4");
+const wrap = (index: number) =>
+  ((index % TRACKS.length) + TRACKS.length) % TRACKS.length;
+export const formatTime = (seconds: number) => {
+  const value = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
 };
 
-const TRACKS: Track[] = [
-  { src: '/images/filmstrip3d-rider.png', artist: 'Mara Venn', title: 'Night Rider', album: 'After the Last Train', year: '2019', scene: '#4e3027', wave: '#fff04a', text: { muted: '#b7a69c', secondary: '#d5c6bb', primary: '#fff7ef', line: 'rgba(255,247,239,.22)', track: 'rgba(255,247,239,.18)' } },
-  { src: '/images/elektrosthal.png', artist: 'Elektrosthal', title: 'Borrowed Numbers', album: 'Red Static', year: '2024', scene: '#86452f', wave: '#00f5ff', text: { muted: '#f0c6ae', secondary: '#ffe0cc', primary: '#fff8ef', line: 'rgba(255,248,239,.24)', track: 'rgba(255,248,239,.18)' } },
-  { src: '/images/filmstrip3d-shadows.png', artist: 'The Soft Hours', title: 'Half Past Four', album: 'Rooms With No View', year: '2021', scene: '#35454e', wave: '#ff4f81', text: { muted: '#b6c7d0', secondary: '#d6e4eb', primary: '#f5fbff', line: 'rgba(245,251,255,.24)', track: 'rgba(245,251,255,.18)' } },
-  { src: '/images/fast.png', artist: 'FAST', title: 'No Slow Return', album: 'Velocity Studies', year: '2025', scene: '#895633', wave: '#b6ff00', text: { muted: '#efc4a9', secondary: '#ffdfc9', primary: '#fff8ee', line: 'rgba(255,248,238,.24)', track: 'rgba(255,248,238,.18)' } },
-  { src: '/images/filmstrip3d-mist.png', artist: 'Juniper Static', title: 'Two in the Fog', album: 'Still / Moving', year: '2020', scene: '#3d5360', wave: '#ff9e3d', text: { muted: '#b8c9d1', secondary: '#d7e6ec', primary: '#f5fbff', line: 'rgba(245,251,255,.24)', track: 'rgba(245,251,255,.18)' } },
-  { src: '/images/mizzsterious.png', artist: 'Mizzsterious', title: 'Color Theory', album: 'Mizzterious Forms', year: '2024', scene: '#e7c21f', wave: '#f95dff', text: { muted: '#5a4609', secondary: '#3d2d03', primary: '#171108', line: 'rgba(23,17,8,.28)', track: 'rgba(23,17,8,.22)' } },
-  { src: '/images/filmstrip3d-rain.png', artist: 'Low Atlas', title: 'Wet Glass', album: 'Weather Systems', year: '2022', scene: '#3d514d', wave: '#73ffbd', text: { muted: '#b4c9be', secondary: '#d4e7dc', primary: '#f4fff8', line: 'rgba(244,255,248,.24)', track: 'rgba(244,255,248,.18)' } },
-  { src: '/images/filmstrip3d-dancer.png', artist: 'Vera Bloom', title: 'Ghost Step', album: 'A Body in Light', year: '2018', scene: '#51405d', wave: '#a78bfa', text: { muted: '#c8b9d4', secondary: '#e0d5e8', primary: '#fbf6ff', line: 'rgba(251,246,255,.24)', track: 'rgba(251,246,255,.18)' } },
-  { src: '/images/filmstrip3d-stairs.png', artist: 'Northbound', title: 'Descent', album: 'The Long Way Home', year: '2023', scene: '#315c58', wave: '#ff5f6d', text: { muted: '#acd0ce', secondary: '#cfe9e5', primary: '#f0fffc', line: 'rgba(240,255,252,.24)', track: 'rgba(240,255,252,.18)' } },
-];
-
-const PANEL_WIDTH = 380;
-const PANEL_HEIGHT = 520;
-const STEP = 408;
-const RING_RADIUS = 760;
-const RING_ANGLE = 30;
-const TRACK_SECONDS = 238;
-const WAVE_BARS = Array.from({ length: 72 }, (_, index) => Math.round(28 + Math.abs(Math.sin((index + 1) * 2.15)) * 58 + Math.abs(Math.cos((index + 1) * 0.68)) * 34));
-const WAVE_PACES = [
-  { duration: 0.54, delayStep: 0.04, direction: 'alternate' as const },
-  { duration: 1.12, delayStep: 0.1, direction: 'alternate-reverse' as const },
-  { duration: 0.68, delayStep: 0.055, direction: 'alternate' as const },
-  { duration: 1.38, delayStep: 0.12, direction: 'alternate-reverse' as const },
-  { duration: 0.46, delayStep: 0.032, direction: 'alternate' as const },
-  { duration: 0.92, delayStep: 0.075, direction: 'alternate-reverse' as const },
-  { duration: 0.6, delayStep: 0.045, direction: 'alternate-reverse' as const },
-  { duration: 1.26, delayStep: 0.11, direction: 'alternate' as const },
-  { duration: 0.76, delayStep: 0.062, direction: 'alternate-reverse' as const },
-];
-
-function formatTime(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
-}
-
-function Arrow({ direction }: { direction: 'previous' | 'next' }) {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-      {direction === 'previous' ? <path d="M5 12h14M10 7l-5 5 5 5M19 7v10" /> : <path d="M5 12h14M14 7l5 5-5 5M5 7v10" />}
-    </svg>
-  );
-}
-
-function PlayIcon({ playing }: { playing: boolean }) {
-  return playing ? (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M7 5h3v14H7zM14 5h3v14h-3z" /></svg>
-  ) : (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" /></svg>
-  );
-}
-
-function MenuIcon({ open }: { open: boolean }) {
-  return open ? (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
-  ) : (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-  );
-}
-
 export default function App() {
-  const [scroll, setScroll] = useState(5 * STEP);
+  return (
+    <VideoPlayer>
+      <Filmstrip />
+    </VideoPlayer>
+  );
+}
+
+function Filmstrip() {
+  const player = usePlayer();
+  const paused = usePlayer((state) => state.paused);
+  const currentTime = usePlayer((state) => state.currentTime);
+  const mediaDuration = usePlayer((state) => state.duration);
+  const volume = usePlayer((state) => state.volume);
+  const muted = usePlayer((state) => state.muted);
+  const volumeAvailability = usePlayer((state) => state.volumeAvailability);
+  const isFullscreen = usePlayer((state) => state.isFullscreen);
+  const fullscreenAvailability = usePlayer(
+    (state) => state.fullscreenAvailability,
+  );
+  const duration = Number.isFinite(mediaDuration) ? mediaDuration : 0;
+  const elapsed = Number.isFinite(currentTime) ? currentTime : 0;
   const [active, setActive] = useState(5);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [position, setPosition] = useState(5 * STEP);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [started, setStarted] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [loadKey, setLoadKey] = useState(0);
+  const video = useRef<HTMLVideoElement>(null);
+  const stage = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const target = useRef(5 * STEP);
-  const raf = useRef<number | null>(null);
-  const dragging = useRef(false);
-  const lastX = useRef(0);
-
-  const wrapIndex = useCallback((index: number) => ((index % TRACKS.length) + TRACKS.length) % TRACKS.length, []);
-  const animate = useCallback(() => {
-    setScroll((current) => {
-      const next = current + (target.current - current) * 0.08;
-      if (Math.abs(target.current - next) > 0.1) raf.current = requestAnimationFrame(animate);
-      else raf.current = null;
-      return next;
-    });
-  }, []);
-  const kick = useCallback(() => {
-    if (raf.current === null) raf.current = requestAnimationFrame(animate);
-  }, [animate]);
-
-  useEffect(() => {
-    setActive(wrapIndex(Math.round(scroll / STEP)));
-  }, [scroll, wrapIndex]);
-
-  useEffect(() => () => {
-    if (raf.current !== null) cancelAnimationFrame(raf.current);
-  }, []);
-
-  useEffect(() => {
-    setElapsed(0);
-  }, [active]);
-
-  useEffect(() => {
-    if (!isPlaying) return;
-    const timer = window.setInterval(() => {
-      setElapsed((current) => {
-        if (current >= TRACK_SECONDS) {
-          setIsPlaying(false);
-          return TRACK_SECONDS;
-        }
-        return current + 1;
-      });
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [isPlaying]);
-
-  const goTo = useCallback((index: number) => {
-    const currentPosition = Math.round(target.current / STEP);
-    const currentIndex = wrapIndex(currentPosition);
-    const nextIndex = wrapIndex(index);
-    let difference = nextIndex - currentIndex;
-
-    if (difference > TRACKS.length / 2) difference -= TRACKS.length;
-    if (difference < -TRACKS.length / 2) difference += TRACKS.length;
-
-    target.current = (currentPosition + difference) * STEP;
-    kick();
-  }, [kick, wrapIndex]);
-
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    dragging.current = true;
-    lastX.current = event.clientX;
-    setIsDragging(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging.current) return;
-    const difference = event.clientX - lastX.current;
-    lastX.current = event.clientX;
-    target.current -= difference * 1.4;
-    kick();
-  };
-  const onPointerUp = () => {
-    if (!dragging.current) return;
-    dragging.current = false;
-    setIsDragging(false);
-    target.current = Math.round(target.current / STEP) * STEP;
-    kick();
-  };
-  const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    target.current += delta * 1.2;
-    kick();
-  };
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'ArrowLeft') { event.preventDefault(); goTo((active - 1 + TRACKS.length) % TRACKS.length); }
-    if (event.key === 'ArrowRight') { event.preventDefault(); goTo((active + 1) % TRACKS.length); }
-    if (event.key === ' ') { event.preventDefault(); setIsPlaying((playing) => !playing); }
-  };
-
+  const positionRef = useRef(5 * STEP);
+  const frame = useRef<number | null>(null);
+  const gesture = useRef<{
+    x: number;
+    y: number;
+    target: number;
+    moved: boolean;
+  } | null>(null);
+  const ignoreClick = useRef(false);
   const track = TRACKS[active];
-  const wavePace = WAVE_PACES[active];
-  const progress = (elapsed / TRACK_SECONDS) * 100;
+
+  useEffect(() => {
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(
+    () => () => {
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+    },
+    [],
+  );
+
+  const animateTo = useCallback(
+    (next: number) => {
+      target.current = next;
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      if (reducedMotion) {
+        positionRef.current = next;
+        setPosition(next);
+        frame.current = null;
+        return;
+      }
+      const tick = () => {
+        const delta = target.current - positionRef.current;
+        positionRef.current =
+          Math.abs(delta) < 0.3
+            ? target.current
+            : positionRef.current + delta * 0.14;
+        setPosition(positionRef.current);
+        frame.current =
+          Math.abs(delta) < 0.3 ? null : requestAnimationFrame(tick);
+      };
+      frame.current = requestAnimationFrame(tick);
+    },
+    [reducedMotion],
+  );
+
+  const select = useCallback(
+    (index: number) => {
+      const next = wrap(index);
+      let difference = next - wrap(Math.round(target.current / STEP));
+      if (difference > TRACKS.length / 2) difference -= TRACKS.length;
+      if (difference < -TRACKS.length / 2) difference += TRACKS.length;
+      if (next !== active) {
+        player.pause();
+        setActive(next);
+        setStarted(false);
+        setError("");
+        setNotice("");
+        setLoading(true);
+      }
+      animateTo((Math.round(target.current / STEP) + difference) * STEP);
+    },
+    [active, animateTo, player],
+  );
+
+  const togglePlay = useCallback(async () => {
+    setNotice("");
+    if (!paused) {
+      player.pause();
+      return;
+    }
+    try {
+      await player.play();
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
+      setNotice("Playback could not start. Please try Play again.");
+    }
+  }, [paused, player]);
+  const fullscreen = useCallback(async () => {
+    try {
+      await (isFullscreen
+        ? player.exitFullscreen()
+        : player.requestFullscreen());
+    } catch {
+      setNotice("Fullscreen is unavailable in this browser window.");
+    }
+  }, [isFullscreen, player]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: globalThis.PointerEvent) => {
+      if (!menu.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    const element = stage.current;
+    if (!element) return;
+    let last = 0;
+    const wheel = (event: WheelEvent) => {
+      // Leave ordinary vertical scrolling and browser zoom alone.
+      if (
+        event.ctrlKey ||
+        (!event.shiftKey && Math.abs(event.deltaX) <= Math.abs(event.deltaY))
+      )
+        return;
+      event.preventDefault();
+      if (performance.now() - last < 300) return;
+      const delta = event.deltaX || event.deltaY;
+      if (Math.abs(delta) < 5) return;
+      last = performance.now();
+      select(active + Math.sign(delta));
+    };
+    element.addEventListener("wheel", wheel, { passive: false });
+    return () => element.removeEventListener("wheel", wheel);
+  }, [active, select]);
+
+  const pointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || (event.target as Element).closest(".stage-play"))
+      return;
+    ignoreClick.current = false;
+    gesture.current = {
+      x: event.clientX,
+      y: event.clientY,
+      target: target.current,
+      moved: false,
+    };
+  };
+  const pointerMove = (event: PointerEvent<HTMLElement>) => {
+    const current = gesture.current;
+    if (!current) return;
+    const dx = event.clientX - current.x;
+    const dy = event.clientY - current.y;
+    if (!current.moved && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+      gesture.current = null;
+      return;
+    }
+    if (Math.abs(dx) < 8 && !current.moved) return;
+    current.moved = true;
+    ignoreClick.current = true;
+    setDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    animateTo(current.target - dx * 1.4);
+  };
+  const pointerEnd = () => {
+    const current = gesture.current;
+    gesture.current = null;
+    setDragging(false);
+    if (current?.moved) select(Math.round(target.current / STEP));
+  };
+  const keyboard = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape" && menuOpen) {
+      setMenuOpen(false);
+      menuButton.current?.focus();
+      return;
+    }
+    if (
+      (event.target as HTMLElement).closest(
+        "button, input, a, textarea, select",
+      )
+    )
+      return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      select(active - 1);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      select(active + 1);
+    } else if (event.key === " " || event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      void togglePlay();
+    } else if (event.key.toLowerCase() === "m")
+      player.setMuted(!(muted || volume === 0));
+    else if (event.key.toLowerCase() === "f") void fullscreen();
+  };
+  const retry = () => {
+    setError("");
+    setNotice("");
+    setLoading(true);
+    setStarted(false);
+    setLoadKey((value) => value + 1);
+  };
+  const progress = duration ? Math.min(100, (elapsed / duration) * 100) : 0;
+  const css = {
+    "--scene": track.scene,
+    "--primary": track.text.primary,
+    "--secondary": track.text.secondary,
+    "--muted": track.text.muted,
+    "--line": track.text.line,
+    "--accent": track.wave,
+  } as CSSProperties;
 
   return (
-    <main
-      className="filmstrip-app"
-      style={{ backgroundColor: track.scene, color: track.text.primary, cursor: isDragging ? 'grabbing' : 'grab' }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      onWheel={onWheel}
-      onKeyDown={onKeyDown}
-      tabIndex={0}
-       aria-label="3D filmstrip music gallery. Swipe or drag to browse, use arrow keys, and press space to play."
+    <Container
+      className={`filmstrip-app ${dragging ? "is-dragging" : ""}`}
+      style={css}
+      onKeyDown={keyboard}
       data-testid="gallery-canvas"
     >
       <header className="filmstrip-header">
-        <div />
-        <div
-          className="header-controls"
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerMove={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          aria-label="Playback controls"
-        >
-          <button type="button" className="icon-button" style={{ color: track.text.secondary }} onClick={() => goTo((active - 1 + TRACKS.length) % TRACKS.length)} aria-label="Previous track" data-testid="button-header-previous-track"><Arrow direction="previous" /></button>
-          <button type="button" className="icon-button play-button" style={{ color: track.text.primary }} onClick={() => setIsPlaying((playing) => !playing)} aria-label={isPlaying ? 'Pause' : 'Play'} data-testid="button-header-play-toggle"><PlayIcon playing={isPlaying} /></button>
-          <button type="button" className="icon-button" style={{ color: track.text.secondary }} onClick={() => goTo((active + 1) % TRACKS.length)} aria-label="Next track" data-testid="button-header-next-track"><Arrow direction="next" /></button>
+        <div className="brand">
+          <span>
+            PSST<span className="brand-dot">.</span>
+          </span>
+          <small>A LITTLE LOUDER. A LITTLE CLOSER.</small>
         </div>
-        <div className="menu-wrap">
+        <div className="header-controls" aria-label="Playback controls">
           <button
-            type="button"
-            className="menu-button"
-            style={{ color: track.text.primary }}
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={menuOpen}
-            onClick={(event) => { event.stopPropagation(); setMenuOpen((open) => !open); }}
-            data-testid="button-menu"
+            className="icon-button"
+            onClick={() => select(active - 1)}
+            aria-label="Previous track"
+            data-testid="button-header-previous-track"
           >
-            <MenuIcon open={menuOpen} />
+            <ArrowLeft size={16} />
+          </button>
+          <button
+            className="icon-button play-button"
+            onClick={() => void togglePlay()}
+            disabled={!!error}
+            aria-label={paused ? "Play" : "Pause"}
+            data-testid="button-header-play-toggle"
+          >
+            {paused ? (
+              <Play size={18} fill="currentColor" />
+            ) : (
+              <Pause size={18} fill="currentColor" />
+            )}
+          </button>
+          <button
+            className="icon-button"
+            onClick={() => select(active + 1)}
+            aria-label="Next track"
+            data-testid="button-header-next-track"
+          >
+            <ArrowRight size={16} />
+          </button>
+        </div>
+        <div className="menu-wrap" ref={menu}>
+          <button
+            className="icon-button"
+            ref={menuButton}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            aria-controls="gallery-info"
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            {menuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
           {menuOpen && (
-            <div className="menu-popover" role="dialog" aria-label="Gallery information" onPointerDown={(event) => event.stopPropagation()} data-testid="menu-popover">
-              <p className="eyebrow">Now browsing</p>
-              <p className="menu-copy">Nine moving images, one continuous strip.<br />Drag, scroll, or use the keys.</p>
+            <div className="menu-popover" id="gallery-info">
+              <p className="eyebrow">The local preview</p>
+              <p>Nine covers. One continuous filmstrip.</p>
+              <p>
+                Drag or use left / right to browse. Space or K to play, M to
+                mute, F for fullscreen. Tab to the sliders for precise control.
+              </p>
+              <p>
+                All covers play the same original 16-second motion study with a
+                soft test tone. Artist and album names are demo artwork, not
+                licensed music.
+              </p>
+              <p>Powered by Video.js 10.3.0.</p>
             </div>
           )}
         </div>
       </header>
 
-      <section className="carousel-stage" aria-label="Album carousel">
+      <section
+        ref={stage}
+        className="carousel-stage"
+        aria-label="3D filmstrip. Use left and right arrows to browse."
+        tabIndex={0}
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={pointerEnd}
+        onPointerCancel={pointerEnd}
+      >
         <div className="carousel-ring">
           {TRACKS.map((item, index) => {
-            const rawIndex = index - scroll / STEP;
-            const normalized = ((rawIndex + TRACKS.length / 2) % TRACKS.length + TRACKS.length) % TRACKS.length - TRACKS.length / 2;
-            const angle = normalized * RING_ANGLE;
-            const radians = angle * Math.PI / 180;
-            const x = Math.sin(radians) * RING_RADIUS;
-            const z = (Math.cos(radians) - 1) * RING_RADIUS;
-            const twist = Math.max(-14, Math.min(14, normalized * 5));
-            const isActive = index === active;
-            return (
+            const raw = index - position / STEP;
+            const normalized =
+              ((((raw + TRACKS.length / 2) % TRACKS.length) + TRACKS.length) %
+                TRACKS.length) -
+              TRACKS.length / 2;
+            const angle = normalized * 30;
+            const radians = (angle * Math.PI) / 180;
+            const selected = index === active;
+            const cardStyle = {
+              transform: `translateX(${Math.sin(radians) * 760}px) translateZ(${(Math.cos(radians) - 1) * 760}px) rotateY(${angle}deg) rotateZ(${Math.max(-14, Math.min(14, normalized * 5))}deg) scale(${selected ? 1.13 : 1})`,
+              opacity: Math.max(0.12, 1 - Math.abs(normalized) * 0.2),
+            };
+            return selected ? (
+              <div
+                key={index}
+                className="album-card is-active"
+                style={cardStyle}
+              >
+                <div className="album-card-inner">
+                  <Video
+                    key={`${active}-${loadKey}`}
+                    ref={video}
+                    className={`filmstrip-video ${started ? "has-started" : ""}`}
+                    src={SAMPLE}
+                    poster={asset(item.src)}
+                    preload="auto"
+                    playsInline
+                    aria-label="PSST original motion study"
+                    onLoadStart={() => setLoading(true)}
+                    onLoadedMetadata={() => setLoading(false)}
+                    onCanPlay={() => setLoading(false)}
+                    onWaiting={() => setLoading(true)}
+                    onPlaying={() => {
+                      setStarted(true);
+                      setLoading(false);
+                      setError("");
+                    }}
+                    onEnded={() => setLoading(false)}
+                    onError={() => {
+                      setLoading(false);
+                      setError(
+                        "The demo video could not load. Check the local media file and retry.",
+                      );
+                    }}
+                  />
+                  <div className="card-label">
+                    <span>0{index + 1} / 09</span>
+                    <span>LOCAL MOTION STUDY</span>
+                  </div>
+                  {!started && !error && (
+                    <button
+                      className="stage-play"
+                      onClick={() => void togglePlay()}
+                      aria-label="Play motion study"
+                    >
+                      <Play size={24} fill="currentColor" />
+                    </button>
+                  )}
+                  {loading && !error && (
+                    <div className="media-status" role="status">
+                      <span className="spinner" />
+                      Loading video
+                    </div>
+                  )}
+                  {error && (
+                    <div className="media-error" role="alert">
+                      <p>{error}</p>
+                      <button className="retry-button" onClick={retry}>
+                        <RotateCcw size={14} /> Retry video
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
               <button
+                key={index}
                 type="button"
-                className={`album-card ${isActive ? 'is-active' : ''}`}
-                key={item.src}
-                style={{
-                  transform: `translateX(${x}px) translateZ(${z}px) rotateY(${angle}deg) rotateZ(${twist}deg) scale(${isActive ? 1.23 : 1})`,
-                  opacity: Math.max(0.15, 1 - Math.abs(normalized) * 0.18),
-                  transition: 'opacity .3s, transform .45s cubic-bezier(.2,.8,.2,1)',
+                className="album-card"
+                style={cardStyle}
+                onClick={() => {
+                  if (!ignoreClick.current) select(index);
                 }}
-                onClick={(event) => { event.stopPropagation(); goTo(index); }}
                 aria-label={`Select ${item.artist}, ${item.title}`}
+                tabIndex={-1}
                 data-testid={`button-album-${index}`}
               >
                 <span className="album-card-inner">
-                  <img src={item.src} alt={`${item.artist} — ${item.title} cover`} draggable={false} style={{ filter: isActive ? 'none' : 'brightness(.75) contrast(1.02)' }} />
-                  <span className="album-sheen" style={{ background: `linear-gradient(${105 + normalized * 20}deg, rgba(255,255,255,${Math.min(.16, Math.abs(normalized) * .09)}) 0%, transparent 40%, rgba(0,0,0,${Math.min(.55, Math.abs(normalized) * .25)}) 100%)` }} />
+                  <img src={asset(item.src)} alt="" draggable={false} />
+                  <span className="album-sheen" />
                 </span>
               </button>
             );
           })}
         </div>
+        <span className="browse-hint" aria-hidden="true">
+          DRAG TO DISCOVER <span>↔</span> {String(active + 1).padStart(2, "0")}{" "}
+          / 09
+        </span>
       </section>
 
       <footer className="filmstrip-footer">
-        <section className="caption" aria-live="polite" data-testid="dynamic-track-details">
-          <div className="caption-artist" style={{ color: track.text.secondary }} data-testid="text-track-artist">{track.artist}</div>
-          <h1 className="caption-title" style={{ color: track.text.primary }} data-testid="text-track-title">{track.title}</h1>
-          <div className="caption-meta" style={{ color: track.text.muted }} data-testid="text-track-meta">
-            <span>{track.album}</span><span aria-hidden="true" style={{ color: track.text.line }}>—</span><span>{track.year}</span>
+        <section
+          className="caption"
+          aria-live="polite"
+          data-testid="dynamic-track-details"
+        >
+          <div className="caption-artist">{track.artist}</div>
+          <h1 className="caption-title">{track.title}</h1>
+          <div className="caption-meta">
+            {track.album}
+            <span aria-hidden="true">/</span>
+            {track.year}
           </div>
+          <p className="demo-note">Original demo video · artwork concept</p>
         </section>
-
-        <div className="wave-holder" onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()}>
-          <div className={`wave ${isPlaying ? 'is-playing' : ''}`} style={{ color: track.wave, width: isPlaying ? '100%' : '600px' }} role="img" aria-label={`${isPlaying ? 'Playing' : 'Paused'} waveform for ${track.album}`} data-testid="dynamic-waveform">
-            <span className="wave-line" style={{ backgroundColor: 'currentColor', opacity: isPlaying ? 0 : .7 }} />
-            {WAVE_BARS.map((height, index) => (
-              <span
-                key={index}
-                className="wave-bar"
-                style={{
-                  backgroundColor: 'currentColor',
-                  height,
-                  opacity: isPlaying ? 1 : 0,
-                  animationDelay: `${(index % 16) * -wavePace.delayStep}s`,
-                  animationDuration: `${wavePace.duration + (index % 5) * 0.055}s`,
-                  animationDirection: index % 4 === 0
-                    ? wavePace.direction
-                    : wavePace.direction === 'alternate'
-                      ? 'alternate-reverse'
-                      : 'alternate',
-                }}
-              />
-            ))}
-          </div>
+        <div
+          className={`wave ${!paused && !loading ? "is-playing" : ""}`}
+          aria-hidden="true"
+        >
+          {BARS.map((height, i) => (
+            <span key={i} style={{ height, animationDelay: `${i * -0.09}s` }} />
+          ))}
         </div>
-
         <div className="transport">
-          <div className="time-readout" style={{ color: track.text.primary }} aria-live="polite" data-testid="dynamic-time-left">
-            <div className="time-label" style={{ color: track.text.muted }}>Time left</div>
-            <div className="time-value">-{formatTime(Math.max(0, TRACK_SECONDS - elapsed))}</div>
+          <div className="time-row">
+            <span>
+              {formatTime(elapsed)}{" "}
+              <span className="time-divider">/ {formatTime(duration)}</span>
+            </span>
+            <span className="sample-label">MOTION STUDY</span>
           </div>
-          <div className="scrubber-wrap" onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()}>
+          <input
+            type="range"
+            className="filmstrip-scrubber"
+            min={0}
+            max={duration || 1}
+            step={0.1}
+            value={Math.min(elapsed, duration || 1)}
+            disabled={!duration || !!error}
+            onChange={(event) => player.seek(Number(event.currentTarget.value))}
+            aria-label="Seek video"
+            aria-valuetext={`${formatTime(elapsed)} of ${formatTime(duration)}`}
+            style={{
+              background: `linear-gradient(90deg, var(--accent) ${progress}%, var(--line) ${progress}%)`,
+            }}
+            data-testid="input-track-scrubber"
+          />
+          <div className="secondary-controls">
+            <button
+              className="icon-button"
+              onClick={() => player.setMuted(!(muted || volume === 0))}
+              aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
+            >
+              {muted || volume === 0 ? (
+                <VolumeX size={17} />
+              ) : (
+                <Volume2 size={17} />
+              )}
+            </button>
             <input
               type="range"
-              className="filmstrip-scrubber"
-              min="0"
-              max={TRACK_SECONDS}
-              step="1"
-              value={elapsed}
-              onInput={(event: FormEvent<HTMLInputElement>) => setElapsed(Number(event.currentTarget.value))}
-              onChange={(event: FormEvent<HTMLInputElement>) => setElapsed(Number(event.currentTarget.value))}
-              aria-label={`Seek through ${track.title}`}
-              style={{ color: track.wave, background: `linear-gradient(90deg, ${track.wave} ${progress}%, ${track.text.track} ${progress}%)` }}
-              data-testid="input-track-scrubber"
+              className="volume-slider"
+              disabled={volumeAvailability !== "available"}
+              title={
+                volumeAvailability === "available"
+                  ? "Volume"
+                  : "Use your device volume controls"
+              }
+              min={0}
+              max={1}
+              step={0.05}
+              value={muted ? 0 : volume}
+              onChange={(event) => {
+                const next = Number(event.currentTarget.value);
+                if (next > 0) player.setMuted(false);
+                player.setVolume(next);
+              }}
+              aria-label="Volume"
+              aria-valuetext={`${Math.round((muted ? 0 : volume) * 100)} percent`}
             />
+            <button
+              className="icon-button fullscreen-button"
+              onClick={() => void fullscreen()}
+              disabled={fullscreenAvailability !== "available"}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {isFullscreen ? <Minimize size={17} /> : <Expand size={17} />}
+            </button>
           </div>
         </div>
+        {notice && (
+          <div className="playback-notice" role="status">
+            {notice}
+          </div>
+        )}
       </footer>
-    </main>
+    </Container>
   );
 }
