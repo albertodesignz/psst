@@ -6,6 +6,8 @@ import {
   BsPauseFill,
   BsRewindFill,
   BsFastForwardFill,
+  BsChevronLeft,
+  BsChevronRight,
   BsStopFill,
   BsVolumeUpFill,
   BsVolumeMuteFill,
@@ -15,9 +17,13 @@ import {
   BsDiscFill,
 } from "react-icons/bs";
 import "./cassette.css";
+import { randomArchiveTrack, type ArchiveTrack } from "./archive";
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
-const metadata = {
+const sample: ArchiveTrack = {
+  id: "psst-sample",
+  src: asset("media/psst-motion-study.mp4"),
+  poster: asset("skins/v2/poster.png"),
   title: "Midnight Horizon",
   artist: "The Night Drivers",
   album: "Echoes in Transit",
@@ -65,6 +71,83 @@ function CassetteDeck() {
   const [loadKey, setLoadKey] = useState(0);
   const [showVideo, setShowVideo] = useState(true);
   const [started, setStarted] = useState(false);
+  const [history, setHistory] = useState<ArchiveTrack[]>([sample]);
+  const [position, setPosition] = useState(0);
+  const metadata = history[position];
+  const [finding, setFinding] = useState(false);
+  const request = useRef<AbortController | null>(null);
+  const autoplay = useRef(false);
+  useEffect(() => () => request.current?.abort(), []);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      setLoading(false);
+      setError("Video loading timed out. Retry, or choose Next or Back.");
+    }, 25000);
+    return () => clearTimeout(timer);
+  }, [loading, loadKey]);
+
+  function resetTrack() {
+    player.pause();
+    setError("");
+    setNotice("");
+    setLoading(true);
+    setStarted(false);
+    setCaptionReady(false);
+    setCaptions(false);
+    autoplay.current = true;
+    setLoadKey((v) => v + 1);
+  }
+  function back() {
+    request.current?.abort();
+    request.current = null;
+    setFinding(false);
+    if (position === 0) return;
+    resetTrack();
+    setPosition((v) => v - 1);
+  }
+  async function next() {
+    if (request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setFinding(true);
+    setNotice("");
+    player.pause();
+    try {
+      const track = await randomArchiveTrack(
+        new Set(history.map((item) => item.id)),
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      resetTrack();
+      setHistory((items) => [...items.slice(0, position + 1), track]);
+      setPosition(position + 1);
+    } catch (cause) {
+      if (!controller.signal.aborted)
+        setNotice(
+          cause instanceof TypeError
+            ? "Could not reach Internet Archive. Check your connection or try Next again."
+            : cause instanceof Error && cause.name !== "TimeoutError"
+              ? cause.message
+              : "Archive is taking too long. Try Next again.",
+        );
+    } finally {
+      if (request.current === controller) {
+        request.current = null;
+        setFinding(false);
+      }
+    }
+  }
+  function readyToPlay() {
+    setLoading(false);
+    if (autoplay.current) {
+      autoplay.current = false;
+      void player
+        .play()
+        .catch(() => setNotice("Video ready. Press Play to start playback."));
+    }
+  }
 
   useEffect(() => {
     const media = video.current;
@@ -186,9 +269,9 @@ function CassetteDeck() {
             </button>
             <button
               className="deck-indicator"
-              aria-label="HD unavailable for this sample"
+              aria-label="HD selection unavailable"
               disabled
-              title="Original 640 × 880 sample. No HD rendition available."
+              title="Automatic source selection. No manual HD rendition selector."
             >
               <span aria-hidden="true" />
               HD
@@ -204,13 +287,13 @@ function CassetteDeck() {
               key={loadKey}
               ref={video}
               className={`deck-video ${!showVideo ? "picture-off" : ""} ${started ? "has-started" : ""}`}
-              src={asset("media/psst-motion-study.mp4")}
-              poster={asset("skins/v2/poster.png")}
+              src={metadata.src}
+              poster={metadata.poster}
               preload="metadata"
               playsInline
-              aria-label="Original PSST motion study sample"
+              aria-label={metadata.title}
               onLoadedMetadata={() => setLoading(false)}
-              onCanPlay={() => setLoading(false)}
+              onCanPlay={readyToPlay}
               onWaiting={() => setLoading(true)}
               onPlaying={() => {
                 setStarted(true);
@@ -221,22 +304,26 @@ function CassetteDeck() {
               onEnded={() => setLoading(false)}
               onError={() => {
                 setLoading(false);
-                setError("The sample video could not load.");
+                setError(
+                  "This video could not load. Retry, or choose Next or Back.",
+                );
               }}
             >
-              <track
-                kind="captions"
-                src={asset("skins/v2/sample.en.vtt")}
-                srcLang="en"
-                label="English sample captions"
-                default
-                onLoad={() => {
-                  const track = video.current?.textTracks[0];
-                  if (track) track.mode = "hidden";
-                  setCaptionReady(true);
-                }}
-                onError={() => setCaptionReady(false)}
-              />
+              {!metadata.sourceUrl && (
+                <track
+                  kind="captions"
+                  src={asset("skins/v2/sample.en.vtt")}
+                  srcLang="en"
+                  label="English sample captions"
+                  default
+                  onLoad={() => {
+                    const track = video.current?.textTracks[0];
+                    if (track) track.mode = "hidden";
+                    setCaptionReady(true);
+                  }}
+                  onError={() => setCaptionReady(false)}
+                />
+              )}
             </Video>
             {!showVideo && (
               <div className="deck-screen-message">
@@ -246,7 +333,7 @@ function CassetteDeck() {
             )}
             {loading && !error && (
               <div className="deck-status" role="status">
-                Loading sample…
+                Loading video…
               </div>
             )}
             {error && (
@@ -255,6 +342,32 @@ function CassetteDeck() {
                 <button onClick={retry}>Retry video</button>
               </div>
             )}
+            <div
+              className="deck-timeline deck-inset deck-video-timeline"
+              aria-label="Video timeline"
+            >
+              <div className="deck-range">
+                <progress
+                  aria-hidden="true"
+                  max={duration || 1}
+                  value={elapsed}
+                />
+                <input
+                  aria-label="Seek video"
+                  aria-valuetext={`${time(elapsed)} of ${time(duration)}`}
+                  type="range"
+                  min={0}
+                  max={duration || 1}
+                  step={0.1}
+                  value={Math.min(elapsed, duration || 1)}
+                  disabled={!duration || !!error}
+                  onChange={(e) => player.seek(Number(e.currentTarget.value))}
+                />
+              </div>
+              <output aria-label="Playback time">
+                {time(elapsed)} <span>/ {time(duration)}</span>
+              </output>
+            </div>
           </section>
           <aside
             className="deck-side"
@@ -269,39 +382,77 @@ function CassetteDeck() {
               className="deck-metadata deck-inset"
               aria-label="Track information"
             >
-              <img src={asset("skins/v2/poster.png")} alt="" />
+              <img
+                src={metadata.poster}
+                alt=""
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+                key={metadata.id}
+              />
               <div>
+                <nav
+                  className="deck-track-navigation"
+                  aria-label="Song and video navigation"
+                >
+                  <button
+                    onClick={back}
+                    disabled={position === 0 && !finding}
+                    aria-label="Previous video"
+                    title="Previous song or video"
+                  >
+                    <BsChevronLeft aria-hidden="true" />
+                  </button>
+                  <button
+                    onClick={() => void next()}
+                    disabled={finding}
+                    aria-label="Next random Archive video"
+                    title="Play a random VHS Vault commercial"
+                  >
+                    <BsChevronRight aria-hidden="true" />
+                  </button>
+                </nav>
                 <h2>{metadata.title}</h2>
                 <p>{metadata.artist}</p>
                 <p className="deck-album">
                   <BsDiscFill aria-hidden="true" />{" "}
                   <span>
-                    Album: {metadata.album}
-                    <span className="deck-year"> · Year: {metadata.year}</span>
+                    {metadata.sourceUrl ? "Source: " : "Album: "}
+                    {metadata.album}
+                    {metadata.year && (
+                      <span className="deck-year">
+                        {" "}
+                        · Year: {metadata.year}
+                      </span>
+                    )}
                   </span>
                 </p>
+                {metadata.sourceUrl && (
+                  <p className="deck-rights">{metadata.rights}</p>
+                )}
+                {metadata.sourceUrl && (
+                  <p className="deck-source-links">
+                    <a
+                      href={metadata.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View on Archive
+                    </a>
+                    {metadata.licenseUrl && (
+                      <a
+                        href={metadata.licenseUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        License
+                      </a>
+                    )}
+                  </p>
+                )}
               </div>
             </section>
           </aside>
-        </div>
-        <div className="deck-timeline deck-inset">
-          <div className="deck-range">
-            <progress aria-hidden="true" max={duration || 1} value={elapsed} />
-            <input
-              aria-label="Seek video"
-              aria-valuetext={`${time(elapsed)} of ${time(duration)}`}
-              type="range"
-              min={0}
-              max={duration || 1}
-              step={0.1}
-              value={Math.min(elapsed, duration || 1)}
-              disabled={!duration || !!error}
-              onChange={(e) => player.seek(Number(e.currentTarget.value))}
-            />
-          </div>
-          <output aria-label="Playback time">
-            {time(elapsed)} <span>/ {time(duration)}</span>
-          </output>
         </div>
         <div
           className="deck-controls deck-inset"
@@ -346,10 +497,14 @@ function CassetteDeck() {
               <button
                 className="deck-key"
                 onClick={() => {
+                  request.current?.abort();
+                  request.current = null;
+                  setFinding(false);
+                  autoplay.current = false;
                   player.pause();
                   player.seek(0);
                 }}
-                disabled={!duration || !!error}
+                disabled={!finding && (!duration || !!error)}
                 aria-label="Stop"
               >
                 <BsStopFill />
@@ -429,6 +584,23 @@ function CassetteDeck() {
             </label>
           </div>
         </div>
+        {finding && (
+          <p className="deck-notice" role="status">
+            Finding a playable VHS Vault commercial…{" "}
+            <button
+              onClick={() => {
+                request.current?.abort();
+                request.current = null;
+                setFinding(false);
+                setNotice(
+                  "Search cancelled. Press Play to resume the current video.",
+                );
+              }}
+            >
+              Cancel
+            </button>
+          </p>
+        )}
         {notice && (
           <p className="deck-notice" role="status">
             {notice}
@@ -438,7 +610,9 @@ function CassetteDeck() {
       <footer className="deck-footnote">
         <a href={import.meta.env.BASE_URL}>PSST v1</a>
         <span>
-          PSST v2 · Original 16-second sample · Fictional track metadata
+          {metadata.sourceUrl
+            ? "PSST v2 · Internet Archive · VHS Vault commercials · Rights may be unspecified"
+            : "PSST v2 · Original sample · Press > for VHS Vault commercials"}
         </span>
         <span>Video.js 10.3.0</span>
       </footer>

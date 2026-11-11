@@ -27,3 +27,15 @@ Screenshots: `.local/qa/v2-desktop-final.png`, `.local/qa/v2-mobile-final.png`. 
 
 
 Release: v2 playback fills its existing video panel edge to edge using centered cover cropping, as requested. Portrait footage is cropped; the cassette and metadata layout is unchanged. Vercel rewrites serve direct /v2 and /v2/ navigation.
+
+## VHS Archive navigation and timeline release
+
+The < and > buttons remain in the metadata panel. < returns through this tab's playback history. > chooses a new random publicly playable MP4 from the requested VHS Vault / commercials / vhscommercials filtered collection and attempts autoplay. Browsers may require Play to start. SEEK -10s/+10s remain unchanged. History resets on reload; Next after Back starts a new random branch. Stop cancels an in-flight selection. Cancel keeps the current video paused.
+
+The seek slider and elapsed/total time now overlay the video. They appear on mouseover or keyboard focus; on touch/coarse-pointer devices they stay visible. The separate timeline row is removed, moving the main controls up. All original playback controls and metadata arrows remain available.
+
+Search matches the supplied filters: collection:vhsvault AND subject:"commercials" AND mediatype:movies AND collection:vhscommercials, excluding restricted items. This returned 7,327 candidates when checked. Selection shuffles a random 25-item search page, validates metadata and probes publicly playable MP4s, with bounded cancellation/timeouts. It is not a fixed playlist or an exact uniform sample of every file. No license or file-size exclusion is silently added. Rights metadata and supported declared license links are displayed when present; otherwise the panel says rights are not specified and links to the Archive item. Availability does not establish reuse rights. Content is not curated or rehosted.
+
+The approved edge-to-edge crop remains. Archive videos have no fabricated sample captions; CC is disabled for them. Long titles wrap. Source links retain attribution and context.
+
+Verification: 14 parser checks (`node --experimental-strip-types artifacts/filmstrip-gallery/src/archive.test.ts`), full workspace typecheck/build, actual Archive playback, session history, restored seek controls, cancellation/Stop, search outage recovery, desktop hover/focus and narrow layout. This release preserves v1 at / and updates v2 at /v2.
