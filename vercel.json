@@ -3,5 +3,15 @@
   "framework": "vite",
   "installCommand": "npx --yes pnpm@11.25.0 install --frozen-lockfile",
   "buildCommand": "npx --yes pnpm@11.25.0 build:preview",
-  "outputDirectory": "artifacts/filmstrip-gallery/dist/public"
+  "outputDirectory": "artifacts/filmstrip-gallery/dist/public",
+  "rewrites": [
+    {
+      "destination": "/index.html",
+      "source": "/v2"
+    },
+    {
+      "destination": "/index.html",
+      "source": "/v2/"
+    }
+  ]
 }
