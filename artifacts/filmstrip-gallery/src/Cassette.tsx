@@ -17,6 +17,8 @@ import {
   BsDiscFill,
 } from "react-icons/bs";
 import "./cassette.css";
+import { CassetteArtwork } from "./CassetteArtwork";
+import { useCassetteMotion } from "./useCassetteMotion";
 import { randomArchiveTrack, type ArchiveTrack } from "./archive";
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
@@ -77,6 +79,15 @@ function CassetteDeck() {
   const [finding, setFinding] = useState(false);
   const request = useRef<AbortController | null>(null);
   const autoplay = useRef(false);
+  const { reels, seekFeedback, stopMotion } = useCassetteMotion(video, loadKey);
+  const seekIntent = useRef<number | null>(null);
+  function seekTo(value: number) {
+    const target = Math.max(0, Math.min(duration, value));
+    const from = seekIntent.current ?? video.current?.currentTime ?? elapsed;
+    seekFeedback(from, target);
+    seekIntent.current = target;
+    player.seek(target);
+  }
   useEffect(() => () => request.current?.abort(), []);
 
   useEffect(() => {
@@ -89,6 +100,8 @@ function CassetteDeck() {
   }, [loading, loadKey]);
 
   function resetTrack() {
+    stopMotion();
+    seekIntent.current = null;
     player.pause();
     setError("");
     setNotice("");
@@ -218,7 +231,7 @@ function CassetteDeck() {
       void togglePlay();
     } else if (key === "arrowleft" || key === "arrowright") {
       event.preventDefault();
-      player.seek(
+      seekTo(
         Math.max(
           0,
           Math.min(duration, elapsed + (key === "arrowleft" ? -10 : 10)),
@@ -300,7 +313,10 @@ function CassetteDeck() {
                 setLoading(false);
                 setError("");
               }}
-              onSeeked={() => setLoading(false)}
+              onSeeked={() => {
+                setLoading(false);
+                seekIntent.current = null;
+              }}
               onEnded={() => setLoading(false)}
               onError={() => {
                 setLoading(false);
@@ -361,7 +377,7 @@ function CassetteDeck() {
                   step={0.1}
                   value={Math.min(elapsed, duration || 1)}
                   disabled={!duration || !!error}
-                  onChange={(e) => player.seek(Number(e.currentTarget.value))}
+                  onChange={(e) => seekTo(Number(e.currentTarget.value))}
                 />
               </div>
               <output aria-label="Playback time">
@@ -373,10 +389,10 @@ function CassetteDeck() {
             className="deck-side"
             aria-label="Cassette and track information"
           >
-            <img
-              className="deck-tape"
-              src={asset("skins/v2/cassette.png")}
-              alt="Black vintage cassette labeled Video Mix v2, with ivory reels and orange accents"
+            <CassetteArtwork
+              title={metadata.title}
+              image={asset("skins/v2/cassette.png")}
+              reels={reels}
             />
             <section
               className="deck-metadata deck-inset"
@@ -474,7 +490,9 @@ function CassetteDeck() {
             <label className="deck-key-group">
               <button
                 className="deck-key"
-                onClick={() => player.seek(Math.max(0, elapsed - 10))}
+                onClick={() =>
+                  seekTo(Math.max(0, (seekIntent.current ?? elapsed) - 10))
+                }
                 disabled={!duration || !!error}
                 aria-label="Seek back 10 seconds"
               >
@@ -485,7 +503,11 @@ function CassetteDeck() {
             <label className="deck-key-group">
               <button
                 className="deck-key"
-                onClick={() => player.seek(Math.min(duration, elapsed + 10))}
+                onClick={() =>
+                  seekTo(
+                    Math.min(duration, (seekIntent.current ?? elapsed) + 10),
+                  )
+                }
                 disabled={!duration || !!error}
                 aria-label="Seek forward 10 seconds"
               >
@@ -502,6 +524,8 @@ function CassetteDeck() {
                   setFinding(false);
                   autoplay.current = false;
                   player.pause();
+                  stopMotion();
+                  seekIntent.current = null;
                   player.seek(0);
                 }}
                 disabled={!finding && (!duration || !!error)}

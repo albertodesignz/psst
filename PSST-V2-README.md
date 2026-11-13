@@ -8,7 +8,7 @@ Run `./Start-PSST.ps1` as before. The original v1 remains at `/`; its App.tsx an
 
 Video.js 10.3.0 drives play/pause, seek, time, volume/mute, fullscreen and end/replay. Stop pauses and returns to zero. VIDEO toggles the picture while preserving audio. CC controls actual English WebVTT sample captions. HD is intentionally disabled because the original 640 × 880 sample has no alternate HD rendition. Errors show a retry action. Keyboard: Space/K play, arrows seek 10 seconds, M mute, C captions, F fullscreen. Buttons and native range inputs remain keyboard accessible.
 
-The astronaut art is the poster, not the video. Playing uses the existing original ~16-second motion study with a soft synthesized test tone. Track names are fictional design metadata. The generated cassette, poster, vent image and metal material are separate raster assets, not a flattened player screenshot. Decorative cassette reels are static.
+The astronaut art is the poster, not the video. Playing uses the existing original ~16-second motion study with a soft synthesized test tone. Track names are fictional design metadata. The generated cassette, poster, vent image and metal material are separate raster assets, not a flattened player screenshot. Decorative cassette reels are now layered and animated; see the local-review section below.
 
 ## Fonts and next refinement
 
@@ -39,3 +39,11 @@ Search matches the supplied filters: collection:vhsvault AND subject:"commercial
 The approved edge-to-edge crop remains. Archive videos have no fabricated sample captions; CC is disabled for them. Long titles wrap. Source links retain attribution and context.
 
 Verification: 14 parser checks (`node --experimental-strip-types artifacts/filmstrip-gallery/src/archive.test.ts`), full workspace typecheck/build, actual Archive playback, session history, restored seek controls, cancellation/Stop, search outage recovery, desktop hover/focus and narrow layout. This release preserves v1 at / and updates v2 at /v2.
+
+## Dynamic label and reels (local review)
+
+The cassette is now layered SVG artwork using the original shell and reel texture, stationary axles/glass shading, and a live handwritten-style label. The label shares the active history item's title and wraps/clamps within the paper face; full title remains in metadata. No new font service or raster payload was added.
+
+Both reels turn clockwise from actual media time during playback. Pause/buffering/end/error stop ordinary rotation; seeking provides bounded directional feedback, including timeline, keyboard and +/-10-second controls. Stop cancels feedback without a rewind animation. New tracks reset decorative rotation. Reduced-motion preference stops the JavaScript animation, and hidden pages suspend it. Motion updates SVG transforms without per-frame React rendering.
+
+Checked on Edge: playback and paused hold, forward/reverse seeking, timeline input changes, keyboard seeking, Stop during motion, simulated waiting/playing events, reduced-motion emulation, real VHS playback (KIMA/CBS and CMT), title synchronization and previous history. Layouts inspected at desktop and 390px touch emulation; 320px overflow check passed. Scoped v1 playback regression passed. Independent static review found a two-line sizing issue, corrected before final checks. Full workspace typecheck/build and 14 Archive parser tests passed. Physical mobile, Safari/Firefox and screen-reader checks remain unrun. No push/deployment.
